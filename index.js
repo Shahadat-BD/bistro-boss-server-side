@@ -1,5 +1,6 @@
 const express = require('express')
 const cors = require('cors');
+const jwt = require('jsonwebtoken')
 const app = express()
 require('dotenv').config()
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
@@ -67,7 +68,7 @@ async function run() {
     app.post('/user',async(req,res)=>{
         const user = req.body;
         // insert email if user doesn't exits.
-        // simple checking 
+        // simple checking  
         const query  = {email : user.email}
         const exitingUser = await userCollection.findOne(query)
         if (exitingUser) {
@@ -77,6 +78,32 @@ async function run() {
         res.send(result)
     })   
 
+    // collect all users by GET API
+    app.get('/user', async (req, res) => {
+        const result = await userCollection.find().toArray()
+        res.send(result)
+    })
+
+    // delete user by DELETE API
+    app.delete('/user/:id',async(req,res)=>{
+        const userId = req.params.id
+        const query = {_id : new ObjectId(userId)}
+        const result = await userCollection.deleteOne(query)
+        res.send(result)
+    })
+
+    // admin created by PATCH API
+    app.patch('/user/admin/:id',async(req,res)=>{
+        const userId = req.params.id
+        const filter = {_id : new ObjectId(userId)}
+        const updateDoc = {
+            $set : {
+                role : 'admin'
+            }
+        }
+        const result = await userCollection.updateOne(filter,updateDoc)
+        res.send(result)
+    })
  
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
