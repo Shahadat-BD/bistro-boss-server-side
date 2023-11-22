@@ -25,17 +25,89 @@ async function run() {
  try {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
-    const foodMenuCollection = client.db("BistroBoss").collection("foodMenu")
+    const foodMenuCollection = client.db("BistroBoss").collection("menu")
     const reviewCollection = client.db("BistroBoss").collection("review")
     const foodCartCollection = client.db("BistroBoss").collection("foodCart")
     const userCollection = client.db("BistroBoss").collection("user")
     // create api like post,get,patch,update and delete.
 
+      //  middleware 
+      
+      const verifyToken = (req,res,next) => { 
+        // console.log('inside verify token',req.headers.authorization);
+         if (!req.headers.authorization) { 
+              return res.status(401).send({message:"unauthorized access"})
+         }
+         const token = req.headers.authorization.split(' ')[1]
+         jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err,decoded) => {
+            if (err) {
+                return res.status(401).send({message:"unauthorized access"})
+            }
+            req.decoded = decoded 
+            next()
+         })
+    }
+
+    // verified admin 
+    // user verify admin after verifyToken
+    const verifyAdmin = async(req,res,next)=>{
+       const email = req.decoded.email
+       const query = {email: email}
+       const user = await userCollection.findOne(query)
+       const isAdmin = user?.role === 'admin'
+       if (!isAdmin) {
+           return res.status(403).send({message:'forbidden access'})
+       }
+       next()
+    }
+
     // all food menu collect form database using GET API
     app.get('/foodMenu', async (req, res) => {
         const result = await foodMenuCollection.find().toArray()
         res.send(result)
+    }) 
+    // specific foodMenu collect.
+    app.get('/foodMenu/:id',async(req,res)=>{ 
+        const id = req.params.id
+        const filter = {_id : new ObjectId(id)}
+        const result = await foodMenuCollection.findOne(filter)
+        res.send(result)
+    }) 
+ 
+    // post food menu 
+    app.post('/foodMenu',verifyToken,verifyAdmin, async(req,res)=>{
+        const menu = req.body
+        const result = await foodMenuCollection.insertOne(menu)
+        res.send(result)
     })
+    // deleted foodMenu Item
+    app.delete('/foodMenu/:id', async(req,res)=>{
+         const id = req.params.id
+         const query = {_id : new ObjectId(id)}
+         const result = await foodMenuCollection.deleteOne(query)
+         res.send(result)
+    })
+
+    // update food menu
+      app.patch('/foodMenu/:id',async(req,res)=>{
+        const id = req.params.id
+        const menu = req.body
+        console.log(menu);
+        const filter = {_id : new ObjectId(id)}
+        const updateDoc = {
+         $set: {
+           name :       menu.name,
+           category :   menu.category,
+           price :      menu.price,
+           image :      menu.image,
+           recipe :     menu.recipe,
+         },
+       };
+       const updatedFoodMenu = await foodMenuCollection.updateOne(filter,updateDoc)
+       res.send(updatedFoodMenu)
+      })
+    
+
     // all review collection frin database using GET API.
     app.get('/review', async (req, res) => {
         const result = await reviewCollection.find().toArray()
@@ -64,35 +136,6 @@ async function run() {
         res.send(result)
     })
 
-     //  middleware 
-      
-     const verifyToken = (req,res,next) => { 
-        // console.log('inside verify token',req.headers.authorization);
-         if (!req.headers.authorization) { 
-              return res.status(401).send({message:"unauthorized access"})
-         }
-         const token = req.headers.authorization.split(' ')[1]
-         jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err,decoded) => {
-            if (err) {
-                return res.status(401).send({message:"unauthorized access"})
-            }
-            req.decoded = decoded 
-            next()
-         })
-    }
-
-    // verified admin 
-    // user verify admin after verifyToken
-    const verifyAdmin = async(req,res,next)=>{
-       const email = req.decoded.email
-       const query = {email: email}
-       const user = await userCollection.findOne(query)
-       const isAdmin = user?.role === 'admin'
-       if (!isAdmin) {
-           return res.status(403).send({message:'forbidden access'})
-       }
-       next()
-    }
           
     // user name and email added in database by POST API
     app.post('/user',async(req,res)=>{
@@ -107,7 +150,7 @@ async function run() {
         const result = await userCollection.insertOne(user)
         res.send(result)
     })   
-   
+    
     // collect all users by GET API
     app.get('/user',verifyToken, verifyAdmin, async (req, res) => {
         const result = await userCollection.find().toArray()
@@ -149,10 +192,10 @@ async function run() {
         res.send(result)
     })
 
-    // jwt related api
+    // jwt related api 
     app.post('/jwt',async(req,res)=>{
-        const user = req.body 
-        const token = jwt.sign(user,process.env.ACCESS_TOKEN_SECRET,{expiresIn:'1h'})
+        const user = req.body  
+        const token = jwt.sign(user,process.env.ACCESS_TOKEN_SECRET,{expiresIn:'2h'})
         res.send({token})
     })
  
